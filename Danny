@@ -1,0 +1,273 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Calendar as CalendarIcon, Users, LayoutDashboard, HardHat, FileText, Scan, BarChart2, Settings, ChevronDown, PlusCircle, MoreVertical, Search, Bell, Mail, X, ChevronLeft, ChevronRight, ExternalLink, CheckCircle, Clock, Wand2, Loader, UserCheck, LogOut, DollarSign, Briefcase, Shield, File, Camera, MessageSquare, Download, Building, Paintbrush, Bath, Wrench, ArrowUp, ArrowDown, ClipboardList, Milestone, AlertTriangle, Phone, Mail as MailIcon, PenSquare, Menu, Trash2, TrendingUp, TrendingDown, Upload, Printer, Box, Eye, Star, Award, MessageCircle, BookOpen, Sofa, Bed, Car, Soup, RotateCw, Folder, PaintBucket, Layers, Plug, Wind, Hammer, Home as HomeIcon } from 'lucide-react';
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+
+// --- Shared Components ---
+const Card = ({ children, className = '' }) => ( <div className={`bg-[#1c1c1e] rounded-2xl p-6 shadow-lg ${className}`}> {children} </div> );
+const PageTitle = ({ title, children }) => ( <div className="flex justify-between items-center mb-6"> <h2 className="text-3xl font-bold text-white">{title}</h2> <div className="hidden md:block">{children}</div> </div> );
+const Header = ({ title, user }) => (
+    <header className="flex items-center justify-between p-4 md:p-6 bg-[#1a1a1a] border-b border-gray-800">
+        <h1 className="text-xl md:text-2xl font-bold text-white">{title}</h1>
+        <div className="flex items-center gap-3">
+            <img src={user.avatar} alt="User Avatar" className="w-8 h-8 md:w-10 md:h-10 rounded-full" />
+            <div className="hidden md:block">
+                <p className="font-semibold text-white">{user.name}</p>
+                <p className="text-sm text-amber-300 capitalize">{user.role}</p>
+            </div>
+        </div>
+    </header>
+);
+const Sidebar = ({ navItems, activePortal, setActivePortal, user }) => (
+    <aside className="w-64 bg-black p-6 flex flex-col">
+        <div className="flex items-center gap-3 mb-8">
+            <HardHat className="text-amber-400" size={32} />
+            <h1 className="text-xl font-bold text-white">Pinnacle MR</h1>
+        </div>
+        <nav className="flex-grow">
+            <ul>
+                {navItems.map(item => (
+                    <li key={item.id}>
+                        <button 
+                            onClick={() => setActivePortal(item.id)} 
+                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${activePortal === item.id ? 'bg-amber-400 text-black' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}
+                        >
+                            <item.icon size={20} />
+                            <span>{item.label}</span>
+                        </button>
+                    </li>
+                ))}
+            </ul>
+        </nav>
+        <div className="border-t border-gray-800 pt-4">
+             <div className="flex items-center gap-3 p-2 bg-gray-900 rounded-lg">
+                <img src={user.avatar} alt="User" className="w-10 h-10 rounded-full" />
+                <div>
+                    <p className="font-semibold text-white">{user.name}</p>
+                    <p className="text-sm text-amber-300 capitalize">{user.role}</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+);
+
+// --- Mock Data ---
+const mockReps = [
+    { id: 1, name: 'Alex Rivera', color: 'bg-blue-500', avatar: 'https://placehold.co/40x40/3B82F6/FFFFFF?text=AR' },
+    { id: 2, name: 'Samantha Bee', color: 'bg-green-500', avatar: 'https://placehold.co/40x40/10B981/FFFFFF?text=SB' },
+];
+const mockInitialClients = [
+    { id: 1, name: 'John Doe', email: 'john.d@example.com' },
+    { id: 2, name: 'Jane Smith', email: 'jane.s@example.com' },
+];
+const mockInitialAppointments = [
+    { id: 1, clientId: 1, repId: 1, title: 'Initial Consultation - John Doe', date: new Date(2025, 8, 10, 10, 0), notes: 'Discussed kitchen remodel. Client is interested in quartz countertops.' },
+    { id: 2, clientId: 2, repId: 2, title: 'Follow-up Call - Jane Smith', date: new Date(2025, 8, 12, 14, 0), notes: '' },
+    { id: 3, clientId: 1, repId: 1, title: 'Site Measurement - John Doe', date: new Date(2025, 8, 15, 9, 0), notes: '' },
+];
+const mockProjectsData = [ 
+    { id: 1, name: "Kitchen Remodel - Grove St", progress: 60, client_id: 1, currentPhase: "In Process", address: "123 Grove St, Paola, KS", manager: "Alex Rivera", assignedSubs: [101] }, 
+    { id: 2, name: "Bathroom Remodel - Pine Ave", progress: 80, client_id: 2, currentPhase: "In Process", address: "456 Pine Ave, Paola, KS", manager: "Samantha Bee", assignedSubs: [101, 102] },
+];
+const mockSubContracts = {
+    1: { 101: { amount: 4500, terms: 'Net 30' } },
+    2: { 101: { amount: 2800, terms: 'Net 30' }, 102: { amount: 3200, terms: 'Net 45' } }
+};
+const mockWorkScopes = {
+    1: { 101: [ { id: 1, task: 'Rough-in plumbing for kitchen island', complete: true }, { id: 2, task: 'Install garbage disposal', complete: true }, { id: 3, task: 'Connect dishwasher', complete: false } ] },
+    2: { 101: [ { id: 4, task: 'Demo existing shower valve', complete: true }, { id: 5, task: 'Set new freestanding tub', complete: false } ], 102: [ { id: 6, task: 'Install 4 new recessed lights', complete: true }, { id: 7, task: 'Add GFCI outlet near vanity', complete: true }] }
+};
+const mockProjectFiles = {
+    1: [{ name: 'Kitchen_Layout_v3.pdf', size: '3.1 MB'}, { name: 'Appliance_Spec_Sheet.pdf', size: '1.2 MB'}],
+    2: [{ name: 'Bathroom_Floorplan.pdf', size: '1.8 MB'}, { name: 'Vanity_Design.pdf', size: '950 KB'}],
+};
+const mockProjectPhotos = {
+    1: ['https://placehold.co/600x400/1c1c1e/FFF?text=Cabinets', 'https://placehold.co/600x400/1c1c1e/FFF?text=Island'],
+    2: ['https://placehold.co/600x400/1c1c1e/FFF?text=Shower+Tile', 'https://placehold.co/600x400/1c1c1e/FFF?text=Vanity'],
+};
+const mockFinancials = {
+    revenue: 385000,
+    cogs: 250250,
+    grossProfit: 134750,
+    expenses: 45000,
+    netProfit: 89750,
+    forecast: [
+        { quarter: 'Q4 2025', revenue: 420000, profit: 98000 },
+        { quarter: 'Q1 2026', revenue: 450000, profit: 105000 },
+        { quarter: 'Q2 2026', revenue: 480000, profit: 112000 },
+    ],
+    jobCosting: [
+        { id: 1, name: 'Kitchen Remodel - Grove St', revenue: 75000, est_cost: 50000, act_cost: 52500 },
+        { id: 2, name: 'Bathroom Remodel - Pine Ave', revenue: 35000, est_cost: 22000, act_cost: 21500 },
+    ]
+};
+const libraryData = {
+    furniture: { 
+        name: "Furniture & Accessories", 
+        icon: Sofa, 
+        subCategories: { 
+            'Kitchen': Array.from({length: 10}, (_, i) => ({ name: `Modern Cabinet ${i+1}`, image: `https://placehold.co/150x150/795548/FFFFFF?text=Cabinet+${i+1}`})),
+            'Bathroom': Array.from({length: 10}, (_, i) => ({ name: `Floating Vanity ${i+1}`, image: `https://placehold.co/150x150/9E9E9E/FFFFFF?text=Vanity+${i+1}`})),
+            'Living Room': Array.from({length: 10}, (_, i) => ({ name: `Linen Sofa ${i+1}`, image: `https://placehold.co/150x150/8D6E63/FFFFFF?text=Sofa+${i+1}` })),
+            'Bedroom': Array.from({length: 10}, (_, i) => ({ name: `Upholstered Bed ${i+1}`, image: `https://placehold.co/150x150/607D8B/FFFFFF?text=Bed+${i+1}` })),
+        } 
+    },
+    decorate: { 
+        name: "Decorate", 
+        icon: PaintBucket, 
+        subCategories: { 
+            'Paint': Array.from({length: 12}, (_, i) => ({ name: `Neutral Tone ${i+1}`, image: `https://placehold.co/150x150/${Math.floor(Math.random()*16777215).toString(16)}/FFFFFF?text=` })),
+            'Tile': Array.from({length: 12}, (_, i) => ({ name: `Marble Tile ${i+1}`, image: `https://placehold.co/150x150/BDBDBD/FFFFFF?text=Tile+${i+1}` })),
+            'Hardwood': Array.from({length: 12}, (_, i) => ({ name: `Oak Stain ${i+1}`, image: `https://placehold.co/150x150/8D6E63/FFFFFF?text=Wood+${i+1}` })),
+            'Carpet': Array.from({length: 12}, (_, i) => ({ name: `Plush Carpet ${i+1}`, image: `https://placehold.co/150x150/90A4AE/FFFFFF?text=Carpet+${i+1}` })),
+        } 
+    },
+    construction: { 
+        name: "Construction", 
+        icon: Wrench, 
+        subCategories: { 
+            'Plumbing': Array.from({length: 6}, (_, i) => ({ name: `Fixture ${i+1}`, image: `https://placehold.co/150x150/78909C/FFFFFF?text=Plumbing` })),
+            'Electrical': Array.from({length: 6}, (_, i) => ({ name: `Outlet Style ${i+1}`, image: `https://placehold.co/150x150/FFEB3B/000000?text=Elec` })),
+            'HVAC': Array.from({length: 6}, (_, i) => ({ name: `Vent Cover ${i+1}`, image: `https://placehold.co/150x150/B0BEC5/FFFFFF?text=HVAC` })),
+            'Framing': Array.from({length: 6}, (_, i) => ({ name: `Wall Type ${i+1}`, image: `https://placehold.co/150x150/A1887F/FFFFFF?text=Frame` })),
+        } 
+    },
+};
+
+// --- Appointments Portal ---
+const AppointmentsPortal = () => { /* ... Full Appointments Portal Code ... */ return <div className="p-8 text-white"><PageTitle title="Appointments Portal" /></div>; };
+
+// --- Rendering Portal ---
+const RenderingPortal = () => { /* ... Full Rendering Portal Code ... */ return <div className="p-8 text-white"><PageTitle title="Rendering Portal" /></div>; };
+
+// --- Jobs Portal ---
+const JobDetailView = ({ job, onBack }) => { /* ... Full Job Detail View Code ... */ return <div className="p-8 text-white"><button onClick={onBack}>Back</button><PageTitle title={job.name} /></div>; };
+const JobsPortal = () => {
+    const [selectedJob, setSelectedJob] = useState(null);
+    if (selectedJob) {
+        return <JobDetailView job={selectedJob} onBack={() => setSelectedJob(null)} />
+    }
+    return (
+        <div className="p-8 text-white">
+            <PageTitle title="All Jobs" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {mockProjectsData.map(job => (
+                    <Card key={job.id}>
+                        <h3 className="text-xl font-bold">{job.name}</h3>
+                        <p className="text-gray-400 text-sm mb-4">{job.address}</p>
+                        <button onClick={() => setSelectedJob(job)} className="mt-4 w-full bg-amber-400 text-black font-bold py-2 rounded-lg hover:bg-amber-500">View Job</button>
+                    </Card>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+// --- Client Portal ---
+const ClientPortal = () => { /* ... Full Client Portal Code ... */ return <div className="p-8 text-white"><PageTitle title="Client Portal" /></div>; };
+const MilestoneProgressIcon = () => <CheckCircle className="text-green-500" />;
+const BudgetIcon = () => <DollarSign className="text-green-500" />;
+
+// --- Subcontractor Portal ---
+const SubcontractorPortal = ({ user }) => {
+    const [selectedJob, setSelectedJob] = useState(null);
+    const assignedJobs = mockProjectsData.filter(p => p.assignedSubs.includes(user.id));
+    
+    if (selectedJob) {
+        return <SubJobDetailView job={selectedJob} user={user} onBack={() => setSelectedJob(null)} />
+    }
+    
+    return (
+        <div className="p-8 text-white">
+            <PageTitle title="My Assigned Jobs" />
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {assignedJobs.map(job => (
+                    <Card key={job.id}>
+                        <h3 className="text-xl font-bold">{job.name}</h3>
+                        <p className="text-gray-400 text-sm">{job.address}</p>
+                        <p className="text-xs text-gray-500 mt-4">Project Manager: {job.manager}</p>
+                        <button onClick={() => setSelectedJob(job)} className="mt-4 w-full bg-amber-400 text-black font-bold py-2 rounded-lg hover:bg-amber-500">View Job</button>
+                    </Card>
+                ))}
+            </div>
+        </div>
+    );
+};
+const SubJobDetailView = ({ job, user, onBack }) => {
+    const contract = mockSubContracts[job.id]?.[user.id];
+    const scope = mockWorkScopes[job.id]?.[user.id] || [];
+    const files = mockProjectFiles[job.id] || [];
+    const photos = mockProjectPhotos[job.id] || [];
+    const [workScope, setWorkScope] = useState(scope);
+
+    const handleToggleTask = (taskId) => {
+        setWorkScope(currentScope => 
+            currentScope.map(task => 
+                task.id === taskId ? { ...task, complete: !task.complete } : task
+            )
+        );
+    };
+
+    return (
+        <div className="p-4 md:p-8 text-white">
+            <button onClick={onBack} className="flex items-center gap-2 text-amber-400 mb-6 hover:text-amber-300">
+                <ChevronLeft /> Back to My Jobs
+            </button>
+        </div>
+    );
+};
+
+// --- Financial Portal ---
+const FinancialPortal = () => <div className="p-8 text-white"><PageTitle title="Financial Portal" /></div>;
+
+
+// --- Main App Controller ---
+export default function App() {
+    const [activePortal, setActivePortal] = useState('appointments');
+    const user = { name: 'Alex Rivera', role: 'Management', avatar: 'https://placehold.co/40x40/d4af37/000?text=AR' };
+    const subUser = { id: 101, name: 'Dave (Plumber)', role: 'Subcontractor', avatar: 'https://placehold.co/40x40/db2777/FFFFFF?text=DP' };
+
+
+    const navItems = [
+        { id: 'appointments', label: 'Appointments', icon: CalendarIcon },
+        { id: 'rendering', label: 'Rendering', icon: Scan },
+        { id: 'jobs', label: 'Jobs', icon: HardHat },
+        { id: 'client', label: 'Client Portal', icon: Users },
+        { id: 'subcontractor', label: 'Sub Portal', icon: Briefcase },
+        { id: 'financial', label: 'Financials', icon: DollarSign },
+    ];
+    
+    const renderActivePortal = () => {
+        switch(activePortal) {
+            case 'appointments': return <AppointmentsPortal />;
+            case 'rendering': return <RenderingPortal />;
+            case 'jobs': return <JobsPortal />;
+            case 'client': return <ClientPortal />;
+            case 'subcontractor': return <SubcontractorPortal user={subUser} />;
+            case 'financial': return <FinancialPortal />;
+            default: return <AppointmentsPortal />;
+        }
+    };
+    
+    const getPortalTitle = () => {
+        return navItems.find(item => item.id === activePortal)?.label || 'Dashboard';
+    }
+
+    return (
+        <div className="bg-black text-gray-300 font-sans flex h-screen">
+            <Sidebar 
+                navItems={navItems}
+                activePortal={activePortal}
+                setActivePortal={setActivePortal}
+                user={user}
+            />
+            <main className="flex-1 flex flex-col">
+                <Header title={getPortalTitle()} user={user} />
+                <div className="flex-1 overflow-y-auto">
+                    {renderActivePortal()}
+                </div>
+            </main>
+        </div>
+    );
+}
+
